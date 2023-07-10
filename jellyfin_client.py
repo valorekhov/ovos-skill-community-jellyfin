@@ -147,6 +147,13 @@ class JellyfinClient(PublicJellyfinClient):
         self.log.debug("SONG URL: " + url)
         return url
 
+    def get_album_art(self, album_id, tag_id, width, height, quality=95):
+        # format: 
+        url = '{0}/Items/{album_id}/Images/Primary?fillHeight={heigh}&fillWidth={width}&quality={quality}&tag={tag_id}'\
+            .format(self.host, album_id=album_id, heigh=height, width=width, quality=quality, tag_id=tag_id)
+        self.log.debug("SONG URL: " + url)
+        return url
+
     def add_to_playlist(self, song_id, playlist_id):
         song = "&ids=" + song_id
         url = PLAYLIST_URL + "/" + str(playlist_id) + ITEMS_URL + "?userId=" + self.auth.user_id + song
@@ -296,3 +303,77 @@ class MediaItemType(Enum):
             if item_type.value == enum_string:
                 return item_type
         return MediaItemType.OTHER
+
+class JellyfinItemMetadata:
+    """ 
+    Stripped down representation of a media item in Jellyfin
+    """
+
+    def __init__(self, id, name, album, aritst, 
+        year, thumbnail_url, background_url, location_type, media_type, uri):
+        self.id = id
+        self.name = name
+        self.album = album
+        self.artist = aritst
+        self.year = year
+        self.thumbnail_url = thumbnail_url
+        self.background_url = background_url
+        self.location_type = location_type
+        self.media_type = media_type
+        self.uri = uri
+
+
+    @staticmethod    
+    def from_json(json, client: JellyfinClient):
+        """
+        Helper method for converting a response into the `JellyfinItemMetadata` object
+        :param json:
+            Given the following sample json:
+            {
+                "Name": "TrackName",
+                "ServerId": "guid",
+                "Id": "guid",
+                "ProductionYear": 1995,
+                "IndexNumber": 1,
+                "IsFolder": false,
+                "Type": "Audio",
+                "Artists": [
+                    "Artist1"
+                ],
+                "ArtistItems": [
+                    {
+                    "Name": "Artist1",
+                    "Id": "guid"
+                    }
+                ],
+                "Album": "Album1",
+                "AlbumId": "guid",
+                "AlbumPrimaryImageTag": "guid",
+                "AlbumArtist": "Artist1",
+                "AlbumArtists": [
+                    {
+                    "Name": "Artist1",
+                    "Id": "guid"
+                    }
+                ],
+                "ImageTags": {},
+                "BackdropImageTags": [],
+                "ImageBlurHashes": {
+                    "Primary": {
+                    "guid": "base64"
+                    }
+                },
+                "LocationType": "FileSystem",
+                "MediaType": "Audio"
+            }
+        :return:
+        """
+        album_id = json["AlbumId"]
+        tag_id = json["AlbumPrimaryImageTag"]
+        return JellyfinItemMetadata(json["Id"], json["Name"],  json["Album"], json["AlbumArtist"],  
+            json["ProductionYear"], client.get_album_art(album_id, tag_id, 128, 128, 95), 
+            client.get_album_art(album_id, tag_id, 1024, 1024, 50), json["LocationType"], json["MediaType"],
+            client.get_song_file(json["Id"]))
+
+    def __str__(self):
+        return f"{self.id}: {self.name} - {self.artist} - {self.album} - {self.year}: {self.thumbnail_url}"

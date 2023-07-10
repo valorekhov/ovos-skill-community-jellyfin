@@ -1,11 +1,12 @@
 import pytest
+import os
 
 from jellyfin_client import JellyfinClient, PublicJellyfinClient, MediaItemType, JellyfinMediaItem
 from jellyfin_croft import JellyfinCroft
 
-HOST = "http://jellyfin:8096"
-USERNAME = "ricky"
-PASSWORD = ""
+HOST = os.environ.get("JELLYFIN_URI") or "http://jellyfin:8096"
+USERNAME = os.environ.get("JELLYFIN_USERNAME")
+PASSWORD = os.environ.get("JELLYFIN_PASSWORD")
 
 
 class TestJellyfinClient(object):

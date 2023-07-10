@@ -1,0 +1,21 @@
+{
+    "name": "Youtube Music Skill",
+    "skillname": "skill-community-jellyfin",
+    "authorname": "LostLightProjects (OVOS port by valorekhov)",
+    "foldername": "",
+    "url": "https://github.com/valorekhov/ovos-skill-community-jellyfin",
+    "branch": "main",
+    "desktopFile": false,
+    "warning": "",
+    "systemDeps": false,
+    "platforms": [
+      "arm",
+      "arm64",
+      "i386",
+      "x86_64",
+      "ia64"
+    ],
+    "examples": [
+      "play from Jellyfin"
+    ]
+  }

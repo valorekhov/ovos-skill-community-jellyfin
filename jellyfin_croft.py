@@ -2,17 +2,17 @@ import logging
 import subprocess
 from enum import Enum
 from collections import defaultdict
-from mycroft.util.parse import match_one
+from ovos_utils.parse import match_one
 import json
 import re
 
 try:
     # this import works wIntentTypehen installing/running the skill
     # note the relative '.'
-    from .jellyfin_client import JellyfinClient, MediaItemType, JellyfinMediaItem, PublicJellyfinClient
+    from .jellyfin_client import JellyfinClient, MediaItemType, JellyfinMediaItem, PublicJellyfinClient, JellyfinItemMetadata
 except (ImportError, SystemError):
     # when running unit tests the '.' from above fails so we exclude it
-    from jellyfin_client import JellyfinClient, MediaItemType, JellyfinMediaItem, PublicJellyfinClient
+    from jellyfin_client import JellyfinClient, MediaItemType, JellyfinMediaItem, PublicJellyfinClient, JellyfinItemMetadata
 
 class IntentType(Enum):
     MEDIA = "media"
@@ -47,26 +47,28 @@ class JellyfinCroft(object):
 
 
     @staticmethod
-    def determine_intent(intent: dict):
-        """
-        Determine the intent!
+    def determine_intent(intent: str):
+        # TODO: need to re-parse the intent to determine the intent type
+        return intent, IntentType.from_string('artist')
+        # """
+        # Determine the intent!
 
-        :param self:
-        :param intent:
-        :return:
-        """
-        if 'media' in intent:
-            return intent['media'], IntentType.from_string('media')
-        elif 'artist' in intent:
-            return intent['artist'], IntentType.from_string('artist')
-        elif 'album' in intent:
-            return intent['album'], IntentType.from_string('album')
-        elif 'playlist' in intent:
-            return intent['playlist'], IntentType.from_string('playlist')
-        elif 'genre' in intent:
-            return intent['genre'], IntentType.from_string('genre')
-        else:
-            return None
+        # :param self:
+        # :param intent:
+        # :return:
+        # """
+        # if 'media' in intent:
+        #     return intent['media'], IntentType.from_string('media')
+        # elif 'artist' in intent:
+        #     return intent['artist'], IntentType.from_string('artist')
+        # elif 'album' in intent:
+        #     return intent['album'], IntentType.from_string('album')
+        # elif 'playlist' in intent:
+        #     return intent['playlist'], IntentType.from_string('playlist')
+        # elif 'genre' in intent:
+        #     return intent['genre'], IntentType.from_string('genre')
+        # else:
+        #     return None
 
     def handle_intent(self, intent: str, intent_type: IntentType):
         """
@@ -222,7 +224,7 @@ class JellyfinCroft(object):
     def get_instant_mix_songs(self, item_id):
         """
         Requests an instant mix from an Jellyfin item id
-        and returns song uris to be played by the Audio Service
+        and returns `JellyfinItemMetadata` items to be played by the Audio Service
         :param item_id:
         :return:
         """
@@ -231,10 +233,10 @@ class JellyfinCroft(object):
             JellyfinCroft.parse_response(response))
         self.set_meta(
             JellyfinCroft.parse_response(response))
-        song_uris = []
+        items = []
         for item in queue_items:
-            song_uris.append(self.client.get_song_file(item.id))
-        return song_uris
+            items.append(JellyfinItemMetadata.from_json(item, self.client))
+        return items
 
     def instant_mix_for_media(self, media_name):
         """
@@ -293,20 +295,19 @@ class JellyfinCroft(object):
         return self.client.get_server_info()
 
     def convert_response_to_playable_songs(self, item_query_response):
-        queue_items = JellyfinMediaItem.from_list(
-            JellyfinCroft.parse_response(item_query_response))
-        self.set_meta(
-            JellyfinCroft.parse_response(item_query_response))
-        for i in JellyfinCroft.parse_response(item_query_response):
+        items = JellyfinCroft.parse_response(item_query_response)
+        # queue_items = JellyfinMediaItem.from_list(items)
+        self.set_meta(items)
+        for i in items:
             for x, y in i.items():
                 self.log.debug(x + ":" + str(y))
-        return self.convert_to_playable_songs(queue_items)
+        return self.convert_to_playable_songs(items)
 
     def convert_to_playable_songs(self, songs):
-        song_uris = []
+        items = []
         for item in songs:
-            song_uris.append(self.client.get_song_file(item.id))
-        return song_uris
+            items.append(JellyfinItemMetadata.from_json(item, self.client))
+        return items
 
 
     @staticmethod
