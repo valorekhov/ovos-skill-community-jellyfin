@@ -369,10 +369,10 @@ class JellyfinItemMetadata:
         :return:
         """
         album_id = json["AlbumId"]
-        tag_id = json["AlbumPrimaryImageTag"]
-        return JellyfinItemMetadata(json["Id"], json["Name"],  json["Album"], json["AlbumArtist"],  
-            json["ProductionYear"], client.get_album_art(album_id, tag_id, 128, 128, 95), 
-            client.get_album_art(album_id, tag_id, 1024, 1024, 50), json["LocationType"], json["MediaType"],
+        tag_id = json.get("AlbumPrimaryImageTag")
+        return JellyfinItemMetadata(json["Id"], json["Name"],  json.get("Album"), json.get("AlbumArtist"),  
+            json.get("ProductionYear"), client.get_album_art(album_id, tag_id, 128, 128, 95) if tag_id else None, 
+            client.get_album_art(album_id, tag_id, 1024, 1024, 50) if tag_id else None, json.get("LocationType"), json.get("MediaType"),
             client.get_song_file(json["Id"]))
 
     def __str__(self):

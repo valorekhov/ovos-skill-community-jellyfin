@@ -1,13 +1,14 @@
 import hashlib
 from ovos_plugin_common_play.ocp import MediaType, PlaybackType
 from ovos_workshop.skills.common_play import OVOSCommonPlaybackSkill, ocp_search
+from ovos_utils.parse import fuzzy_match
 from ovos_utils.parse import match_one
 from ovos_workshop.decorators import intent_handler, adds_context, removes_context
 from ovos_audio.audio import AudioService
 from ovos_backend_client.api import DeviceApi
 from ovos_utils import classproperty
 from random import shuffle
-from .jellyfin_croft import JellyfinCroft
+from .jellyfin_croft import JellyfinCroft, IntentType
 from os.path import join, dirname
 
 
@@ -15,12 +16,13 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
 
     def __init__(self):
         super(JellyfinSkill, self).__init__("Jellyfin")
-        self.supported_media = [MediaType.GENERIC, MediaType.MUSIC, MediaType.AUDIOBOOK]
+        self.supported_media = [MediaType.GENERIC, MediaType.AUDIO, MediaType.MUSIC, MediaType.AUDIOBOOK, MediaType.VIDEO, MediaType.MOVIE, MediaType.CARTOON]
         self.skill_icon = join(dirname(__file__), "ui", "Jellyfin.png")
 
         self._setup = False
         self.audio_service = None
         self.jellyfin_croft = None
+        # TODO: instance-level songs list should no longer be assigned
         self.songs = []
         self.device_id = hashlib.md5(
             ('Jellyfin'+DeviceApi().identity.uuid).encode())\
@@ -39,7 +41,8 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
                                    no_gui_fallback=True)
 
     def initialize(self):
-        self.log.debug(f"self.config={self.config}")
+        # self.log.debug(f"self.config={self.config}")
+        pass
 
     def connect_to_jellyfin(self, diagnostic=False):
         """
@@ -66,57 +69,100 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
 
         return auth_success
 
-    def initialize(self):
-        pass
-
-    # common play
-    @ocp_search()
-    def search_jellyfin(self, message: str, media_type: MediaType =None, media_subtype=None):
-
-        self.log.info(f"message: {message}: media_type: {media_type}")
-
+    def _search_jellyfin(self, message: str, media_type: MediaType=MediaType.GENERIC, intent_type: IntentType=IntentType.from_string('media')):
         # first thing is connect to jellyfin or bail
         if not self.connect_to_jellyfin():
             self.speak_dialog('configuration_fail')
             return
 
-        # determine intent
-        intent, intent_type = JellyfinCroft.determine_intent(message)
-        self.log.debug(f"intent: {intent}: intent_type: {intent_type}")
+         # match the request media_type
+        base_score = 0
+        if media_type == MediaType.MUSIC :
+            base_score += 10
+        # else:
+        #     base_score -= 15  # some penalty for proof of concept
 
-        self.songs = []
-        try:
-            self.songs = self.jellyfin_croft.handle_intent(intent, intent_type)
-        except Exception as e:
-            self.log.info(e)
-            self.speak_dialog('play_fail', {"media": intent})
+        explicit_request = False
+        if self.voc_match(message, "jellyfin"):
+            # explicitly requested our skill
+            base_score += 50
+            message = self.remove_voc(message, "jellyfin")  # clean up search str
+            explicit_request = True
+            self.extend_timeout(1)
 
-        if not self.songs or len(self.songs) < 1:
-            self.log.info('No songs Returned')
-            self.speak_dialog('play_fail', {"media": intent})
-        else:
-            idx = 0
-            for v in self.songs:
-                # score = self.calc_score(phrase, v, idx,
-                #                         base_score=base_score,
-                #                         media_type=media_type)
+        return self.jellyfin_croft.handle_intent(message, intent_type), base_score
 
-                score = 99
-                yield {
-                        "match_confidence": score,
-                        "media_type": MediaType.MUSIC,
-                        # "length": entry.length * 1000 if entry.length else 0,
-                        "uri": v.uri, 
-                        "playback": PlaybackType.AUDIO,
-                        "image": v.thumbnail_url,
-                        "bg_image": v.background_url,
-                        "skill_icon": self.skill_icon,
-                        "title": v.name,
-                        "album": v.album,
-                        "artist": v.artist,
-                        "skill_id": self.skill_id
-                    }
-                idx += 1
+
+    # common play
+    @ocp_search()
+    def search_jellyfin_artist(self, message: str, media_type: MediaType=None):
+
+        songs, base_score = self._search_jellyfin(message, media_type, IntentType.from_string('artist'))
+        self.log.info(f"got base_score {base_score} for {len(songs)} songs")
+
+        if not songs:
+            return []
+
+        pl = [{
+                "match_confidence": 100-idx,
+                "media_type": MediaType.MUSIC,
+                # "length": entry.length * 1000 if entry.length else 0,
+                "title": v.name,
+                "album": v.album,
+                "artist": v.artist,
+                "uri": v.uri, 
+                "playback": PlaybackType.AUDIO_SERVICE,
+                "image": v.thumbnail_url,
+                "bg_image": v.background_url,
+                "skill_icon": self.skill_icon,
+                "skill_id": self.skill_id
+            } for idx, v in enumerate(songs)]
+
+        name = songs[0].artist
+        score = (fuzzy_match(name, message) * 100) + base_score
+
+        self.log.info(f"artist '{name}' with score: {score}")
+        ret = {
+                    "match_confidence": score,
+                    "media_type": MediaType.AUDIO,
+                    "playback": PlaybackType.AUDIO_SERVICE,
+                    "playlist": pl,  # return full playlist result
+                    "image": songs[0].thumbnail_url,
+                    "bg_image": songs[0].background_url,
+                    "skill_icon": self.skill_icon,
+                    "album": songs[0].album,
+                    ##"duration": sum(t["duration"] for t in pl),
+                    "title": songs[0].album + f" ({songs[0].artist}|Full Album)",
+                    "skill_id": self.skill_id
+                }
+        self.log.debug(ret)
+        return [ret]
+        
+
+    @ocp_search()
+    def search_jellyfin_tracks(self, message: str, media_type: MediaType=None):
+
+        songs, base_score = self._search_jellyfin(message, media_type, IntentType.from_string('media'))
+
+        # self.log.debug(songs)
+       
+        for v in songs:
+            name = v.name
+            score = (fuzzy_match(name, message) * 100) + base_score
+            yield {
+                    "match_confidence": score,
+                    "media_type": MediaType.MUSIC,
+                    "title": v.name,
+                    "album": v.album,
+                    "artist": v.artist,
+                    # "length": entry.length * 1000 if entry.length else 0,
+                    "uri": v.uri, 
+                    "playback": PlaybackType.AUDIO_SERVICE,
+                    "image": v.thumbnail_url,
+                    "bg_image": v.background_url,
+                    "skill_icon": self.skill_icon,
+                    "skill_id": self.skill_id
+                }
 
 
     # Play favorites

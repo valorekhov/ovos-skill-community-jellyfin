@@ -2,7 +2,7 @@ import logging
 import subprocess
 from enum import Enum
 from collections import defaultdict
-from ovos_utils.parse import match_one
+from ovos_utils.parse import fuzzy_match
 import json
 import re
 
@@ -46,30 +46,6 @@ class JellyfinCroft(object):
             self.client = PublicJellyfinClient(self.host, client_id=client_id)
 
 
-    @staticmethod
-    def determine_intent(intent: str):
-        # TODO: need to re-parse the intent to determine the intent type
-        return intent, IntentType.from_string('artist')
-        # """
-        # Determine the intent!
-
-        # :param self:
-        # :param intent:
-        # :return:
-        # """
-        # if 'media' in intent:
-        #     return intent['media'], IntentType.from_string('media')
-        # elif 'artist' in intent:
-        #     return intent['artist'], IntentType.from_string('artist')
-        # elif 'album' in intent:
-        #     return intent['album'], IntentType.from_string('album')
-        # elif 'playlist' in intent:
-        #     return intent['playlist'], IntentType.from_string('playlist')
-        # elif 'genre' in intent:
-        #     return intent['genre'], IntentType.from_string('genre')
-        # else:
-        #     return None
-
     def handle_intent(self, intent: str, intent_type: IntentType):
         """
         Returns songs for given intent if songs are found; none if not
@@ -86,7 +62,8 @@ class JellyfinCroft(object):
             # return songs by artist
             artist_items = self.search_artist(intent)
             if len(artist_items) > 0:
-                songs = self.get_songs_by_artist(artist_items[0].id)
+                artist = max(artist_items, key=lambda i: fuzzy_match(i.name, intent))
+                songs = self.get_songs_by_artist(artist.id)
         elif intent_type == IntentType.ALBUM:
             # return songs by album
             album_items = self.search_album(intent)
@@ -110,9 +87,8 @@ class JellyfinCroft(object):
         :return:
         """
 
-        songs = []
-        songs = self.instant_mix_for_media(media_name)
-        return songs
+        response = self.client.search(media_name, [MediaItemType.SONG.value])
+        return [JellyfinItemMetadata.from_json(v, self.client) for v in JellyfinCroft.parse_search_hints_from_response(response)]
 
     def set_meta(self, meta_data):
         if meta_data != []:
