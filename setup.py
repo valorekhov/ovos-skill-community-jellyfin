@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from setuptools import setup
+from setuptools import find_packages, setup
 import os
 from os import walk, path
 
@@ -11,14 +11,14 @@ PYPI_NAME = "ovos-skill-community-jellyfin"  # pip install PYPI_NAME
 
 # below derived from github url to ensure standard skill_id
 SKILL_AUTHOR, SKILL_NAME = URL.split(".com/")[-1].split("/")
-SKILL_PKG = SKILL_NAME.lower().replace('-', '_')
+SKILL_PKG = "skill_ovos_jellyfin"
 PLUGIN_ENTRY_POINT = f'{SKILL_NAME.lower()}.{SKILL_AUTHOR.lower()}={SKILL_PKG}:{SKILL_CLAZZ}'
 # skill_id=package_name:SkillClass
 
 def find_resource_files():
     # add any folder with files your skill uses here! 
     resource_base_dirs = ("locale", "ui", "vocab", "dialog", "regex", "skill")
-    base_dir = path.dirname(__file__)
+    base_dir = path.join(path.dirname(__file__), SKILL_PKG)
     package_data = ["*.json"]
     for res in resource_base_dirs:
         if path.isdir(path.join(base_dir, res)):
@@ -34,7 +34,7 @@ setup(
     name=PYPI_NAME,
     version="0.0.1",
     url=URL,
-    package_dir={SKILL_PKG: ""},
+    package_dir={SKILL_PKG: "skill_ovos_jellyfin"},
     package_data={SKILL_PKG: find_resource_files()},
     packages=[SKILL_PKG],
     description='ovos common play jellyfin music skill plugin',
