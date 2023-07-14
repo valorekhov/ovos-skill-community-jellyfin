@@ -1,8 +1,8 @@
 import pytest
 import os
 
-from jellyfin_client import JellyfinClient, PublicJellyfinClient, MediaItemType, JellyfinMediaItem
-from jellyfin_croft import JellyfinCroft
+from skill_ovos_jellyfin.jellyfin_client import JellyfinClient, PublicJellyfinClient, MediaItemType, JellyfinMediaItem
+from skill_ovos_jellyfin.jellyfin_croft import JellyfinCroft
 
 from test.integration import HOST, PASSWORD, USERNAME
 

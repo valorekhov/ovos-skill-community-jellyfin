@@ -5,7 +5,6 @@ try:
 except ImportError:
     pass
 
-
 def test_runner(skill, example, emitter, loader):
 
     # Get the skill object from the skill path
