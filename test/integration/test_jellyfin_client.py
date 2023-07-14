@@ -4,10 +4,7 @@ import os
 from jellyfin_client import JellyfinClient, PublicJellyfinClient, MediaItemType, JellyfinMediaItem
 from jellyfin_croft import JellyfinCroft
 
-HOST = os.environ.get("JELLYFIN_URI") or "http://jellyfin:8096"
-USERNAME = os.environ.get("JELLYFIN_USERNAME")
-PASSWORD = os.environ.get("JELLYFIN_PASSWORD")
-
+from test.integration import HOST, PASSWORD, USERNAME
 
 class TestJellyfinClient(object):
 

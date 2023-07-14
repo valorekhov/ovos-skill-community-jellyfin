@@ -1,18 +1,15 @@
-import pytest
-import os
-
 from jellyfin_client import JellyfinClient, PublicJellyfinClient, MediaItemType, JellyfinMediaItem
 from jellyfin_croft import JellyfinCroft
-
-HOST = os.environ.get("JELLYFIN_URI") or "http://jellyfin:8096"
-USERNAME = os.environ.get("JELLYFIN_USERNAME")
-PASSWORD = os.environ.get("JELLYFIN_PASSWORD")
-
+from test.integration import HOST, PASSWORD, USERNAME
 
 class TestJellyfinCroft(object):
 
     def test_song_metadta_by_artist(self):
         artist = 'yalla'
+
+        assert HOST is not None
+        assert USERNAME is not None
+        assert PASSWORD is not None
 
         client = JellyfinClient(HOST, USERNAME, PASSWORD)
         response = client.search(artist, [MediaItemType.ARTIST.value])
