@@ -150,7 +150,7 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
                     "skill_icon": self.skill_icon,
                     "album": songs[0].album,
                     "duration": sum(t["duration"] for t in pl),
-                    "title": songs[0].album + f" ({songs[0].artist}|Full Album)" is_album else f"{songs[0].artist} (Compilation)",
+                    "title": (songs[0].album + f" ({songs[0].artist}|Full Album)") if is_album else f"{songs[0].artist} (Compilation)",
                     "skill_id": self.skill_id
                 })
 
