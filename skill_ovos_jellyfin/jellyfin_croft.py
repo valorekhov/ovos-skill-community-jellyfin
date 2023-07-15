@@ -1,35 +1,15 @@
 import logging
 import subprocess
-from enum import Enum
-from collections import defaultdict
 from typing import List
 from ovos_utils.parse import fuzzy_match
 import json
 import re
 
-try:
-    # this import works wIntentTypehen installing/running the skill
-    # note the relative '.'
-    from .jellyfin_client import JellyfinClient, MediaItemType, JellyfinMediaItem, PublicJellyfinClient, JellyfinItemMetadata
-except (ImportError, SystemError):
-    # when running unit tests the '.' from above fails so we exclude it
-    from jellyfin_client import JellyfinClient, MediaItemType, JellyfinMediaItem, PublicJellyfinClient, JellyfinItemMetadata
-
-class IntentType(Enum):
-    MEDIA = "media"
-    ARTIST = "artist"
-    ALBUM = "album"
-    SONG = "song"
-    PLAYLIST = "playlist"
-    GENRE = "genre"
-
-    @staticmethod
-    def from_string(enum_string):
-        assert enum_string is not None
-        for item_type in IntentType:
-            if item_type.value == enum_string.lower():
-                return item_type
-
+from skill_ovos_jellyfin.intent_type import IntentType
+from skill_ovos_jellyfin.jellyfin_client import JellyfinClient, PublicJellyfinClient
+from skill_ovos_jellyfin.media_item_type import MediaItemType
+from skill_ovos_jellyfin.jellyfin_media_item import JellyfinMediaItem
+from skill_ovos_jellyfin.jellyfin_item_metadata import JellyfinItemMetadata
 
 class JellyfinCroft(object):
 
@@ -187,14 +167,14 @@ class JellyfinCroft(object):
         """
         return self.search(playlist, [MediaItemType.PLAYLIST.value])
 
-    def search(self, query, include_media_types=[], favorites=False):
+    def search(self, query, include_media_types:List[MediaItemType]=[]):
         """
         Searches Jellyfin from a given query
         :param query:
         :param include_media_types:
         :return:
         """
-        response = self.client.search(query, include_media_types, favorites)
+        response = self.client.search(query, include_media_types)
         search_items = JellyfinCroft.parse_search_hints_from_response(response)
         return JellyfinMediaItem.from_list(search_items)
 
@@ -241,27 +221,27 @@ class JellyfinCroft(object):
     def get_albums_by_artist(self, artist_id):
         return self.client.get_albums_by_artist(artist_id)
 
-    def get_songs_by_album(self, album_id):
+    def get_songs_by_album(self, album_id) -> List[JellyfinItemMetadata]:
         response = self.client.get_songs_by_album(album_id)
         return self.convert_response_to_playable_songs(response)
 
-    def get_songs_by_artist(self, artist_id):
+    def get_songs_by_artist(self, artist_id) -> List[JellyfinItemMetadata]:
         response = self.client.get_songs_by_artist(artist_id)
         return self.convert_response_to_playable_songs(response)
 
-    def get_songs_by_genre(self, genre_id):
+    def get_songs_by_genre(self, genre_id) -> List[JellyfinItemMetadata]:
         response = self.client.get_songs_by_genre(genre_id)
         return self.convert_response_to_playable_songs(response)
 
     def get_all_artists(self):
         return self.client.get_all_artists()
 
-    def get_songs_by_playlist(self, playlist_id):
+    def get_songs_by_playlist(self, playlist_id) -> List[JellyfinItemMetadata]:
         response = self.client.get_songs_by_playlist(playlist_id)
         return self.convert_response_to_playable_songs(response)
 
     # Get songs from id (To allow meta data fetching)
-    def get_songs_by_id(self, song_id):
+    def get_songs_by_id(self, song_id) -> List[JellyfinItemMetadata]:
         response = self.client.get_item(song_id)
         return self.convert_response_to_playable_songs(response)
 
@@ -271,7 +251,7 @@ class JellyfinCroft(object):
     def get_server_info(self):
         return self.client.get_server_info()
 
-    def convert_response_to_playable_songs(self, item_query_response):
+    def convert_response_to_playable_songs(self, item_query_response) -> List[JellyfinItemMetadata]:
         items = JellyfinCroft.parse_response(item_query_response)
         # queue_items = JellyfinMediaItem.from_list(items)
         # self.set_meta(items)

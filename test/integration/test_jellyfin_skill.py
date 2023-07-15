@@ -1,5 +1,3 @@
-from skill_ovos_jellyfin.jellyfin_client import JellyfinClient, MediaItemType, JellyfinMediaItem
-from skill_ovos_jellyfin.jellyfin_croft import JellyfinCroft
 from skill_ovos_jellyfin import JellyfinSkill 
 from test.integration import HOST, PASSWORD, USERNAME
 
