@@ -2,15 +2,17 @@ import hashlib
 from ovos_plugin_common_play.ocp import MediaType, PlaybackType
 from ovos_workshop.skills.common_play import OVOSCommonPlaybackSkill, ocp_search, ocp_featured_media
 from ovos_utils.parse import fuzzy_match
-from ovos_utils.parse import match_one
 from ovos_workshop.decorators import intent_handler, adds_context, removes_context
 from ovos_audio.audio import AudioService
 from ovos_backend_client.api import DeviceApi
 from ovos_utils import classproperty
 from random import shuffle
+from skill_ovos_jellyfin.jellyfin_media_item import JellyfinMediaItem
 
-from skill_ovos_jellyfin.jellyfin_client import JellyfinItemMetadata
-from .jellyfin_croft import JellyfinCroft, IntentType
+from skill_ovos_jellyfin.media_item_type import MediaItemType
+from skill_ovos_jellyfin.intent_type import IntentType
+from skill_ovos_jellyfin.jellyfin_item_metadata import JellyfinItemMetadata
+from skill_ovos_jellyfin.jellyfin_croft import JellyfinCroft
 from os.path import join, dirname
 
 
@@ -75,10 +77,11 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
         return auth_success
     
 
-    def _ensure_connection(self):
+    def _ensure_connection(self, announce_failure=False):
         # first thing is connect to jellyfin or bail
         if not self.connect_to_jellyfin():
-            self.speak_dialog('configuration_fail')
+            if announce_failure:
+                self.speak_dialog('configuration_fail')
             return False
         return True
     
@@ -104,7 +107,7 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
         base_score, _ = self._calculate_base_score(message, media_type)
         return self.jellyfin_croft.handle_intent(message, intent_type), base_score
     
-    def to_ocp_entry(self, item: JellyfinItemMetadata, score: int, media_type: MediaType=MediaType.GENERIC):
+    def to_ocp_playlist_item(self, item: JellyfinItemMetadata, score: int, media_type: MediaType=MediaType.GENERIC):
         return {
                 "match_confidence": score,
                 "media_type": media_type,
@@ -122,16 +125,43 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
     
     @ocp_featured_media()
     def featured_media(self):
-        if not self._ensure_connection():
+        if not self._ensure_connection(announce_failure=True):
             return []
         
-        featured = self.jellyfin_croft.search('', IntentType.SONG, favorites=True)
-        return [self.to_ocp_entry(v, 100-idx, media_type=MediaType.MUSIC) for idx, v in enumerate(featured)]
+        featured = JellyfinCroft.parse_response(self.jellyfin_croft.client.get_favorites([MediaItemType.SONG, MediaItemType.ALBUM, MediaItemType.ARTIST]))
 
+        ret = []
+        for featured_item in featured:
+            item = JellyfinMediaItem.from_item(featured_item)
+            is_album = item.type == MediaItemType.ALBUM
+            is_artist = item.type == MediaItemType.ARTIST
+            if item.type == MediaItemType.SONG:
+                ret.append(self.to_ocp_playlist_item(JellyfinItemMetadata.from_json(featured_item, self.jellyfin_croft.client), 70, media_type=MediaType.MUSIC))
+            elif is_album or is_artist:                
+                songs = self.jellyfin_croft.get_songs_by_album(item.id) if is_album else self.jellyfin_croft.get_songs_by_artist(item.id)
+                pl = [self.to_ocp_playlist_item(song, max(100-idx, 51), media_type=MediaType.MUSIC) for idx, song in enumerate(songs)]
+                ret.append({
+                    "match_confidence": 85 if is_album else 100,
+                    "media_type": MediaType.AUDIO,
+                    "playback": PlaybackType.AUDIO,
+                    "playlist": pl,  
+                    "image": songs[0].thumbnail_url,
+                    "bg_image": songs[0].background_url,
+                    "skill_icon": self.skill_icon,
+                    "album": songs[0].album,
+                    "duration": sum(t["duration"] for t in pl),
+                    "title": songs[0].album + f" ({songs[0].artist}|Full Album)",
+                    "skill_id": self.skill_id
+                })
+
+        return ret
 
     # common play
     @ocp_search()
     def search_jellyfin_artist(self, intent: str, media_type: MediaType=None):
+        if not self._ensure_connection(announce_failure=False):
+            return []
+        
         base_score, _ = self._calculate_base_score(intent, media_type)
 
         self.log.info(f"got base_score {base_score} for query: '{intent}'")
@@ -159,7 +189,7 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
 
             songs_scored = [(song, song_score_func(song, idx)) for idx, song in enumerate(songs[:50])]
 
-            pl = [self.to_ocp_entry(v, score, media_type=MediaType.MUSIC) for v, score in songs_scored]
+            pl = [self.to_ocp_playlist_item(v, score, media_type=MediaType.MUSIC) for v, score in songs_scored]
 
             self.log.info(f"prepared a playlist with {len(pl)} songs for artist '{artist.name}'")
 
@@ -179,6 +209,9 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
 
     @ocp_search()
     def search_jellyfin_tracks(self, message: str, media_type: MediaType=None):
+        if not self._ensure_connection(announce_failure=False):
+            return []
+
         songs, base_score = self._search_jellyfin(message, media_type, IntentType.MEDIA)
 
         # self.log.debug(songs)
