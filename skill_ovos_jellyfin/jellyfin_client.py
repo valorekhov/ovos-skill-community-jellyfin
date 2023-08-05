@@ -29,19 +29,22 @@ SERVER_INFO_PUBLIC_URL = SERVER_INFO_URL + "/Public"
 # auth constants
 AUTH_USERNAME_KEY = "username"
 AUTH_PASSWORD_KEY = "Pw"
-MAX_STREAM_BITRATE = "MaxStreamingBitrate=140000000&"
-AUDIO_CODEC = "audioCodec=mp3&"
 STATIC = "static=true&"
-TRANSCODING_SETTING = "TranscodingContainer=ts&TranscodingProtocol=hls&"
-#CONTAINER = "Container=opus%2Cmp3%7Cmp3%2Caac%2Cm4a%2Cm4b%7Caac%2Cflac%2Cwebma%2Cwebm%2Cwav%2Cogg&"
-CONTAINER = "Container=mp3&"
-#JELLY_ARGS = CONTAINER + TRANSCODING_SETTING + MAX_STREAM_BITRATE + AUDIO_CODEC
-JELLY_ARGS = TRANSCODING_SETTING
+# transcoding constants
+# QMediaPlayer struggles to output smooth audio on RPi4 at higher bitrates
+# so we're setting it to 128kbps, using opus codec
 
+TRANSCODING_SETTING = {
+    # 'TranscodingProtocol': 'hls',  QMediaPlayer, part of Mycroft-GUI, does not support HLS, so there's that...
+    'MaxStreamingBitrate': '128000',
+    'Container': 'opus,mp3,aac,m4a,flac,webma,webm,wav,ogg,mpa,wma',
+    'AudioCodec': 'opus',
+}
+TRANSCODING_SETTING = '&'.join([f'{k}={v}' for k, v in TRANSCODING_SETTING.items()])
 
 
 # query param constants
-AUDIO_STREAM = "stream.mp3"
+AUDIO_STREAM = "stream.opus"
 
 
 class PublicJellyfinClient(object):
@@ -139,9 +142,9 @@ class JellyfinClient(PublicJellyfinClient):
 
     def get_song_file(self, song_id):
         #Include song id again at the end, used to get track meta data with track_info()
-        url = '{0}{1}/{2}/{3}?{4}DeviceId=none&song_id={5}'\
+        url = '{0}{1}/{2}/{3}?{4}&DeviceId=none&song_id={5}'\
             .format(self.host, SONG_FILE_URL,
-                    song_id, AUDIO_STREAM,JELLY_ARGS,song_id)
+                    song_id, AUDIO_STREAM, TRANSCODING_SETTING, song_id)
         self.log.debug("SONG URL: " + url)
         return url
 
