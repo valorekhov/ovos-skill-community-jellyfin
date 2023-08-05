@@ -128,7 +128,7 @@ class JellyfinSkill(OVOSCommonPlaybackSkill):
         if not self._ensure_connection(announce_failure=True):
             return []
         
-        featured = JellyfinCroft.parse_response(self.jellyfin_croft.client.get_favorites([MediaItemType.SONG, MediaItemType.ALBUM, MediaItemType.ARTIST]))
+        featured = JellyfinCroft.parse_response(self.jellyfin_croft.client.get_favorites([MediaItemType.SONG, MediaItemType.ALBUM, MediaItemType.ARTIST, MediaItemType.OTHER]))
 
         ret = []
         for featured_item in featured:
